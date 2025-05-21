@@ -9,14 +9,18 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+            color: #1f2937; /* Tailwind gray-800 */
+            padding: 1rem; /* Tailwind p-4 equivalent */
         }
         .bit-container {
             display: flex;
             gap: 0.25rem; /* 4px */
+            flex-wrap: nowrap; /* Prevent wrapping of bits */
         }
         .bit {
-            width: 1.8rem; /* 28.8px */
-            height: 1.8rem; /* 28.8px */
+            width: 1.75rem; /* Default bit width */
+            height: 1.75rem; /* Default bit height */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -24,55 +28,298 @@
             background-color: #e0e7ff; /* indigo-100 */
             color: #1e3a8a; /* indigo-900 */
             font-weight: 600;
-            transition: background-color 0.3s ease, color 0.3s ease, transform 0.3s ease;
+            transition: all 0.3s ease;
             box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            flex-shrink: 0; /* Prevent bits from shrinking if container is too small */
         }
-        .bit.active {
-            background-color: #6366f1; /* indigo-500 */
-            color: white;
+
+        /* --- Bit Highlighting and Visual Cues --- */
+        .bit.active { /* Active segment of dividend being processed in the main dividend display */
+            background-color: #a5b4fc; /* indigo-300 */
+            color: #1e3a8a; /* indigo-900 */
+        }
+        .bit.current-segment-bit { /* Bits in the currentDividendSegment row in steps area */
+             background-color: #6366f1; /* indigo-500 */
+             color: white;
+        }
+        .bit.current-segment-first-active { /* First bit of current segment in steps, if '1' */
+            font-weight: 900; /* Make it bolder */
             transform: scale(1.05);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
-        .bit.highlight {
+        .bit.highlight, .bit.brought-down { /* Bit being brought down from dividend (in main dividend display) */
             background-color: #fcd34d; /* amber-300 */
             color: #78350f; /* amber-900 */
-            transform: scale(1.05);
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(252, 211, 77, 0.5);
         }
-        .bit.result {
+        .bit.result { /* Final remainder bits */
             background-color: #a78bfa; /* violet-400 */
             color: white;
         }
-        .bit.xor-result {
+        .bit.xor-result { /* Bits resulting from XOR operation */
             background-color: #8b5cf6; /* violet-500 */
             color: white;
             font-weight: 700;
         }
-        .operation-line {
-            height: 2px;
-            background-color: #4b5563; /* gray-600 */
-            margin-top: 0.5rem;
-            margin-bottom: 0.5rem;
+        .bit.divisor-active-xor { /* Divisor when shown in XOR operation */
+            background-color: #d1d5db; /* gray-300 */
+            color: #1f2937; /* gray-800 */
+        }
+        .bit.quotient-bit-new { /* Most recently added quotient bit */
+            transform: scale(1.15);
+            background-color: #34d399; /* emerald-400 */
+            color: white;
+        }
+        .bit.placeholder { /* For empty spots in grid, if needed for alignment */
+            background-color: transparent;
+            box-shadow: none;
+            border: 1px dashed #d1d5db; /* gray-300 */
+        }
+        .bit.invisible { /* For spacing, takes up space but not visible */
+            opacity: 0;
+            pointer-events: none;
+        }
+        .hidden { display: none; }
+
+
+        /* --- Long Division Container and Areas --- */
+        .long-division-wrapper {
+            width: 100%;
+            overflow-x: auto; /* Allow horizontal scrolling for the division part if needed */
+            padding-bottom: 1rem; /* Space for scrollbar if it appears */
+        }
+        .long-division-container {
+            display: grid;
+            grid-template-areas:
+                ". . quotient"
+                "divisor-label divisor dividend"
+                ". . steps";
+            grid-template-columns: auto auto 1fr; /* col1 for label, col2 for divisor, col3 for dividend/steps */
+            gap: 0.25rem 0.5rem; /* row-gap column-gap */
+            align-items: end; /* Align items to the end of their grid cell (bottom) */
+            margin-top: 1rem;
+            position: relative; /* For absolute positioning of arrows/lines if needed */
+            min-width: 400px; /* Minimum width before horizontal scroll might be needed */
+        }
+        .quotient-area {
+            grid-area: quotient;
+            padding-bottom: 0.25rem; /* Space above dividend line */
+        }
+        .divisor-label-area {
+            grid-area: divisor-label;
+            font-size: 0.875rem; /* text-sm */
+            color: #4b5563; /* gray-600 */
+            text-align: right;
+            padding-right: 0.5rem;
+            align-self: center; /* Vertically center with divisor */
+        }
+        .divisor-area {
+            grid-area: divisor;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 0.5rem; /* Space before division line */
+            align-self: center; /* Vertically center with dividend */
+        }
+        .dividend-area {
+            grid-area: dividend;
+            border-left: 2px solid #4b5563; /* gray-600, vertical division line */
+            border-top: 2px solid #4b5563; /* gray-600, top line for dividend */
+            padding-left: 0.5rem; /* Space after division line */
+            padding-top: 0.25rem; /* Space below top line */
+            padding-bottom: 0.25rem; /* Space above first step */
+             white-space: nowrap; /* Prevent dividend from wrapping if too long */
+        }
+        .steps-area {
+            grid-area: steps;
+            padding-left: 0.5rem; /* Align with dividend area's padding */
+            position: relative; /* For positioning lines/arrows related to steps */
+            min-height: 10rem; /* Ensure space for arrows to point into */
+        }
+
+        /* --- Division Steps Area Styling --- */
+        #division-steps { /* Animation steps container */
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start; 
+            min-height: 5rem; 
+        }
+        .division-step-group { 
+            margin-bottom: 0.75rem; 
+            position: relative; 
         }
         .division-step-row {
             display: flex;
             align-items: center;
+            margin-bottom: 0.25rem; 
+            min-height: 2rem; 
+        }
+        .operation-line {
+            height: 2px;
+            background-color: #4b5563; /* gray-600 */
+            margin-top: 0.25rem;
+            margin-bottom: 0.25rem;
+            border-radius: 1px;
+        }
+
+        .arrow-down-container { 
+             position: absolute;
+             top: 0; left: 0; width: 100%; height: 100%;
+             pointer-events: none; 
+             z-index: 5; 
+        }
+        .arrow-down {
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent; 
+            border-right: 5px solid transparent;
+            border-top: 8px solid #fbbf24; /* amber-400 */
+            position: absolute;
+            transition: all 0.3s ease;
+        }
+
+        /* --- Summary View Styling --- */
+        #summary-view .summary-title {
+            font-size: 1.5rem; /* text-xl */
+            font-weight: 600; /* font-semibold */
+            color: #4b5563; /* gray-600 */
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        #summary-view .summary-section {
+            margin-bottom: 1.5rem;
+        }
+        #summary-view .summary-label {
+            font-weight: 600; /* font-semibold */
+            color: #374151; /* gray-700 */
+            margin-right: 0.5rem;
+            min-width: 100px; /* Ensure alignment */
+            display: inline-block;
+        }
+        #summary-view .summary-value-container {
+            display: flex; /* To align label and bits nicely */
+            align-items: center;
             margin-bottom: 0.5rem;
         }
-        .indent {
-            margin-left: 2rem; /* Adjust as needed for alignment */
+        #summary-view .summary-step-group {
+            margin-bottom: 0.5rem;
+            padding-left: 0.5rem; /* Base padding for steps */
         }
-        .relative-indent {
-            position: relative;
+        #summary-view .summary-step-row { /* Re-using for summary */
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.1rem; /* Tighter spacing for summary */
         }
-        .relative-indent .bit-container {
-            position: absolute;
-            left: 0;
+        #summary-view .summary-quotient-bit-label {
+            font-size: 0.875rem;
+            color: #4b5563;
+            margin-left: 1rem;
+        }
+        /* Explanation Text Styling */
+        #explanation-text {
+            line-height: 1.6; /* Improved readability */
+        }
+        #explanation-text strong {
+            color: #2563eb; /* blue-600 for emphasis */
+        }
+
+
+        /* --- General Aesthetics & Responsiveness --- */
+        .page-container {
+            max-w-5xl; 
+            width: 100%;
+            background-color: white;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); 
+            border-radius: 0.5rem; 
+            padding: clamp(1rem, 5vw, 2rem); 
+        }
+        .control-buttons {
+            display: flex;
+            flex-wrap: wrap; 
+            gap: 0.75rem; 
+            margin-top: 1.5rem;
+            justify-content: center;
+            align-items: center; /* Align items including speed control */
+        }
+        .control-buttons button {
+            padding: 0.75rem 1.5rem; 
+            font-weight: 600; 
+            border-radius: 0.5rem; 
+            box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06); 
+            transition: all 0.2s ease;
+        }
+        .control-buttons button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .control-buttons button:focus-visible, #speed-select:focus-visible {
+            outline: 2px solid #6366f1; /* indigo-500 */
+            outline-offset: 2px;
+        }
+
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background-color: #eef2ff; /* indigo-50 */
+            border-radius: 0.5rem; /* rounded-lg */
+            box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
+        }
+        .speed-control label {
+            font-size: 0.875rem; /* text-sm */
+            font-weight: 500; /* medium */
+            color: #4338ca; /* indigo-700 */
+        }
+        #speed-select {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem; /* rounded-md */
+            border: 1px solid #c7d2fe; /* indigo-200 */
+            background-color: white;
+            color: #4338ca; /* indigo-700 */
+            font-weight: 500;
+        }
+
+
+        @media (max-width: 768px) { /* md breakpoint */
+            .bit { width: 1.5rem; height: 1.5rem; font-size: 0.875rem; }
+            .long-division-container { gap: 0.1rem 0.25rem; }
+            .divisor-label-area { font-size: 0.75rem; padding-right: 0.25rem;}
+            .dividend-area { padding-left: 0.25rem; }
+            .steps-area { padding-left: 0.25rem; }
+            .control-buttons button { padding: 0.5rem 1rem; }
+            #summary-view .summary-label { min-width: 80px; }
+            .speed-control { padding: 0.4rem 0.6rem;}
+        }
+
+        @media (max-width: 480px) { /* sm breakpoint or smaller */
+            body { padding: 0.5rem; }
+            .page-container { padding: clamp(0.75rem, 4vw, 1.5rem); }
+            h1 { font-size: 1.5rem; }
+            .bit { width: 1.25rem; height: 1.25rem; font-size: 0.75rem; }
+            #step-display { font-size: 1rem; } 
+            .long-division-wrapper { padding-bottom: 0.5rem; }
+            .long-division-container {
+                grid-template-areas: "quotient quotient" "divisor dividend" "steps steps";
+                grid-template-columns: auto 1fr; min-width: 280px; 
+            }
+            .divisor-label-area { display: none; } 
+            .divisor-area { padding-right: 0.1rem; justify-content: flex-start; } 
+            .dividend-area { border-left-width: 1px; border-top-width: 1px; }
+            .quotient-area { margin-left: calc(5 * 1.25rem + 4 * 0.25rem + 0.1rem + 1px); }
+            .final-remainder-text, .current-remainder-text { font-size: 0.875rem; }
+            #summary-view .summary-label { display: block; margin-bottom: 0.25rem; } 
+            #summary-view .summary-value-container { flex-direction: column; align-items: flex-start; }
+        }
+
+        .sr-only {
+            position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+            overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;
         }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 p-6 flex flex-col items-center min-h-screen">
-    <div class="max-w-4xl w-full bg-white shadow-lg rounded-lg p-8">
+<body class="flex flex-col items-center min-h-screen">
+    <div class="page-container">
         <h1 class="text-3xl font-bold text-center mb-6 text-indigo-700">Dyadische Polynomdivision</h1>
         <p class="text-center mb-8 text-gray-600">
             Diese Animation veranschaulicht die Bit-weise binäre Polynomdivision (Modulo-2-Arithmetik)
@@ -81,50 +328,71 @@
         </p>
 
         <div class="flex flex-col items-center space-y-6">
-            <div class="text-xl font-semibold text-indigo-600" id="step-display">Schritt 0</div>
-
-            <div class="bg-gray-50 p-6 rounded-lg shadow-inner w-full">
-                <div class="flex justify-between items-center mb-4">
-                    <div class="text-lg font-medium text-gray-700">Dividend:</div>
-                    <div id="dividend-display" class="bit-container text-xl"></div>
-                </div>
-                <div class="flex justify-between items-center mb-4">
-                    <div class="text-lg font-medium text-gray-700">Divisor:</div>
-                    <div id="divisor-display" class="bit-container text-xl"></div>
-                </div>
-                <div class="flex justify-between items-center mb-4">
-                    <div class="text-lg font-medium text-gray-700">Quotient:</div>
-                    <div id="quotient-display" class="bit-container text-xl"></div>
-                </div>
-
-                <hr class="my-4 border-t-2 border-gray-300">
-
-                <div id="division-steps" class="flex flex-col items-start font-mono text-xl">
+            <div id="animation-container" class="w-full"> 
+                <div id="step-display" class="text-xl font-semibold text-indigo-600 text-center">Schritt 0</div>
+                <div class="bg-gray-50 p-4 sm:p-6 rounded-lg shadow-inner w-full mt-4">
+                    <div id="long-division-wrapper" class="long-division-wrapper">
+                        <div class="long-division-container font-mono text-lg sm:text-xl">
+                            <div class="divisor-label-area">Divisor:</div>
+                            <div class="divisor-area">
+                                <div id="divisor-display" class="bit-container"></div>
+                            </div>
+                            <div class="quotient-area">
+                                <div id="quotient-display" class="bit-container"></div>
+                            </div>
+                            <div class="dividend-area">
+                                <div id="dividend-display" class="bit-container"></div>
+                            </div>
+                            <div class="steps-area">
+                                <div id="division-steps" class="flex flex-col items-start"></div>
+                                <div class="arrow-down-container" id="arrow-container"></div>
+                                <div class="mt-4">
+                                   <div class="flex items-center">
+                                       <span class="final-remainder-text text-md sm:text-lg font-medium text-gray-700 mr-2">Finaler Rest:</span>
+                                       <div id="final-remainder-display" class="bit-container"></div>
+                                   </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-
-                <div class="flex justify-between items-center mt-6">
-                    <div class="text-lg font-medium text-gray-700">Aktueller Rest:</div>
-                    <div id="current-remainder-display" class="bit-container text-xl"></div>
-                </div>
-                <div class="flex justify-between items-center mt-4">
-                    <div class="text-lg font-medium text-gray-700">Finaler Rest:</div>
-                    <div id="final-remainder-display" class="bit-container text-xl"></div>
+                    <div id="current-remainder-container" class="flex justify-start items-center mt-6 space-x-2">
+                        <div class="current-remainder-text text-md sm:text-lg font-medium text-gray-700">Aktueller Teil-Rest:</div>
+                        <div id="current-remainder-display" class="bit-container text-lg sm:text-xl"></div>
+                    </div>
                 </div>
             </div>
+            
+            <div id="explanation-text" class="mt-6 p-4 bg-blue-50 text-blue-700 rounded-lg shadow text-sm sm:text-base w-full">
+                <!-- Explanatory text will be injected here by JavaScript -->
+            </div>
 
-            <div class="flex space-x-4 mt-6">
-                <button id="prev-btn" class="px-6 py-3 bg-indigo-500 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 transition-all duration-200">
+            <div id="summary-view" class="hidden mt-8 p-4 sm:p-6 bg-white rounded-lg shadow-xl w-full font-mono text-sm sm:text-base"></div>
+
+            <div class="control-buttons">
+                <button id="prev-btn" title="Vorheriger Schritt" class="bg-indigo-500 text-white hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75">
                     &larr; Zurück
                 </button>
-                <button id="play-pause-btn" class="px-6 py-3 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75 transition-all duration-200">
+                <button id="play-pause-btn" title="Animation starten/pausieren" class="bg-green-500 text-white hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">
                     Start
                 </button>
-                <button id="next-btn" class="px-6 py-3 bg-indigo-500 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75 transition-all duration-200">
+                <button id="next-btn" title="Nächster Schritt" class="bg-indigo-500 text-white hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-opacity-75">
                     Weiter &rarr;
                 </button>
-                <button id="reset-btn" class="px-6 py-3 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 transition-all duration-200">
+                <button id="reset-btn" title="Animation zurücksetzen" class="bg-red-500 text-white hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75">
                     Reset
                 </button>
+                <button id="summary-btn" title="Zusammenfassung anzeigen" class="bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75" disabled>
+                    Zeige Zusammenfassung
+                </button>
+                <div class="speed-control">
+                    <label for="speed-select" class="text-sm font-medium text-indigo-700">Geschwindigkeit:</label>
+                    <select id="speed-select" class="text-sm py-1 px-2 border border-indigo-200 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="2000">Sehr Langsam</option>
+                        <option value="1500" selected>Langsam</option>
+                        <option value="750">Mittel</option>
+                        <option value="300">Schnell</option>
+                    </select>
+                </div>
             </div>
         </div>
     </div>
@@ -133,32 +401,42 @@
         const dividendStr = "1100110000";
         const divisorStr = "11001";
         const divisorLen = divisorStr.length;
-        const remainderLen = divisorLen - 1; // Remainder length is one less than divisor length
+        const remainderLen = divisorLen - 1;
+
+        const BIT_WIDTH_REM = 1.75; 
+        const BIT_GAP_REM = 0.25;   
+        const BIT_TOTAL_WIDTH_REM = BIT_WIDTH_REM + BIT_GAP_REM;
+        const ARROW_BASE_WIDTH_PX = 10; 
+        const ARROW_HEIGHT_PX = 8; 
 
         let steps = [];
         let currentStepIndex = 0;
         let isPlaying = false;
         let animationInterval;
+        let activeArrows = []; 
+        let summaryGenerated = false;
+        let summaryVisible = false;
+        let animationSpeed = 1500; // Default speed
 
-        // DOM elements
-        const stepDisplay = document.getElementById('step-display');
+        const stepDisplayElement = document.getElementById('step-display');
         const dividendDisplay = document.getElementById('dividend-display');
         const divisorDisplay = document.getElementById('divisor-display');
         const quotientDisplay = document.getElementById('quotient-display');
         const divisionStepsContainer = document.getElementById('division-steps');
         const currentRemainderDisplay = document.getElementById('current-remainder-display');
         const finalRemainderDisplay = document.getElementById('final-remainder-display');
+        const arrowContainer = document.getElementById('arrow-container'); 
+        const summaryBtn = document.getElementById('summary-btn');
+        const summaryView = document.getElementById('summary-view');
+        const animationContainer = document.getElementById('animation-container'); 
+        const speedSelect = document.getElementById('speed-select');
+        const explanationTextElement = document.getElementById('explanation-text'); // Added
+
         const playPauseBtn = document.getElementById('play-pause-btn');
         const nextBtn = document.getElementById('next-btn');
         const prevBtn = document.getElementById('prev-btn');
         const resetBtn = document.getElementById('reset-btn');
 
-        /**
-         * Performs a bitwise XOR operation on two binary strings.
-         * @param {string} a - The first binary string.
-         * @param {string} b - The second binary string.
-         * @returns {string} The result of the XOR operation.
-         */
         function xor(a, b) {
             let result = '';
             for (let i = 0; i < a.length; i++) {
@@ -167,265 +445,376 @@
             return result;
         }
 
-        /**
-         * Creates a bit element with specified content and classes.
-         * @param {string} bitValue - The bit character ('0' or '1').
-         * @param {string[]} classes - Array of CSS classes to apply.
-         * @returns {HTMLElement} The created div element.
-         */
         function createBitElement(bitValue, classes = []) {
             const bitDiv = document.createElement('div');
-            bitDiv.classList.add('bit', ...classes);
+            bitDiv.classList.add('bit', ...classes.filter(c => c)); 
             bitDiv.textContent = bitValue;
             return bitDiv;
         }
-
-        /**
-         * Renders a bit string into a container.
-         * @param {HTMLElement} container - The DOM element to render into.
-         * @param {string} bitString - The binary string to render.
-         * @param {number[]} activeIndices - Indices of bits to mark as 'active'.
-         * @param {number[]} highlightIndices - Indices of bits to mark as 'highlight'.
-         * @param {string} resultClass - Class for result bits (e.g., 'xor-result').
-         * @param {number} startIndex - Starting index for rendering (for alignment).
-         */
-        function renderBits(container, bitString, activeIndices = [], highlightIndices = [], resultClass = '', startIndex = 0) {
-            container.innerHTML = ''; // Clear previous content
-            // Add empty bits for alignment if startIndex > 0
+        
+        function renderBits(container, bitString, specialClasses = {}, defaultBitClass = '', startIndex = 0) {
+            container.innerHTML = ''; 
             for (let i = 0; i < startIndex; i++) {
-                container.appendChild(createBitElement('', ['invisible'])); // Use invisible placeholder
+                container.appendChild(createBitElement('', ['invisible', defaultBitClass]));
             }
             for (let i = 0; i < bitString.length; i++) {
                 const char = bitString[i];
-                const classes = [];
-                if (activeIndices.includes(i)) {
-                    classes.push('active');
-                }
-                if (highlightIndices.includes(i)) {
-                    classes.push('highlight');
-                }
-                if (resultClass) {
-                    classes.push(resultClass);
-                }
-                container.appendChild(createBitElement(char, classes));
+                const bitSpecificClasses = specialClasses[i] ? (Array.isArray(specialClasses[i]) ? specialClasses[i] : [specialClasses[i]]) : [];
+                container.appendChild(createBitElement(char, [defaultBitClass, ...bitSpecificClasses]));
             }
         }
 
-        /**
-         * Pre-calculates all steps of the binary polynomial division.
-         */
         function calculateSteps() {
             steps = [];
-            let currentRemainder = dividendStr.substring(0, divisorLen);
+            let currentDividendSegment = dividendStr.substring(0, divisorLen);
             let quotient = '';
-            let dividendProcessedIndex = divisorLen; // Index in original dividend
-
-            // Initial state before any operations
-            steps.push({
-                quotient: '',
-                currentRemainderBeforeXOR: '',
-                xorOperand: '',
-                xorResult: '',
-                newRemainder: currentRemainder,
-                dividendHighlightStart: 0,
-                dividendHighlightEnd: divisorLen,
-                quotientBitAdded: null,
-                isFinalStep: false
+            let dividendProcessedIndex = divisorLen; 
+            steps.push({ 
+                quotient: '', currentDividendSegmentForStepRow: dividendStr.substring(0, divisorLen), // Used for initial explanation
+                newRemainderSegment: dividendStr.substring(0, divisorLen), 
+                stepAlignmentChars: 0, isFinalStep: false, mainDividendHighlightStart: 0, 
+                mainDividendHighlightEnd: divisorLen, broughtDownBitOriginalIndex: -1, newQuotientBitIndex: -1,
+                xorOperand: '', xorResult: '' // Add for consistent structure
             });
-
-            // Loop through the rest of the dividend bits
             for (let i = 0; i < dividendStr.length - divisorLen + 1; i++) {
-                const quotientBit = (currentRemainder[0] === '1') ? '1' : '0';
+                const quotientBit = (currentDividendSegment[0] === '1') ? '1' : '0';
                 quotient += quotientBit;
-
                 const xorOperand = (quotientBit === '1') ? divisorStr : '0'.repeat(divisorLen);
-                const xorResult = xor(currentRemainder, xorOperand);
-
-                let nextDividendBit = '';
-                if (dividendProcessedIndex < dividendStr.length) {
-                    nextDividendBit = dividendStr[dividendProcessedIndex];
-                }
-
-                // The new remainder is the XOR result shifted left, with the next bit appended
-                let newRemainder = xorResult.substring(1) + nextDividendBit;
-
-                // Store step details
+                const xorResult = xor(currentDividendSegment, xorOperand);
+                let nextBitBroughtDown = '';
+                if (dividendProcessedIndex < dividendStr.length) nextBitBroughtDown = dividendStr[dividendProcessedIndex];
+                const remainderAfterXor = xorResult.substring(1);
+                const newRemainderSegmentForNextStep = remainderAfterXor + nextBitBroughtDown;
+                const isFinalIteration = (dividendProcessedIndex === dividendStr.length);
                 steps.push({
-                    quotient: quotient,
-                    currentRemainderBeforeXOR: currentRemainder,
-                    xorOperand: xorOperand,
-                    xorResult: xorResult,
-                    newRemainder: newRemainder,
-                    dividendHighlightStart: i, // This is the start of the current window in the original dividend
-                    dividendHighlightEnd: i + divisorLen, // End of current window
-                    quotientBitAdded: quotientBit,
-                    isFinalStep: (dividendProcessedIndex === dividendStr.length) // Check if this is the last bit to be pulled down
+                    quotient: quotient, currentDividendSegmentForStepRow: currentDividendSegment, 
+                    xorOperand: xorOperand, xorResult: xorResult, 
+                    newRemainderSegment: newRemainderSegmentForNextStep, stepAlignmentChars: i, 
+                    isFinalStep: isFinalIteration, finalRemainderValue: isFinalIteration ? remainderAfterXor : null, 
+                    mainDividendHighlightStart: i, mainDividendHighlightEnd: i + divisorLen,
+                    broughtDownBitOriginalIndex: (dividendProcessedIndex < dividendStr.length) ? dividendProcessedIndex : -1,
+                    newQuotientBitIndex: quotient.length - 1,
+                    latestQuotientBit: quotientBit, // Store the latest quotient bit for explanation
+                    bitBroughtDownForExplanation: nextBitBroughtDown // Store for explanation
                 });
-
-                currentRemainder = newRemainder;
+                currentDividendSegment = newRemainderSegmentForNextStep;
                 dividendProcessedIndex++;
             }
-
-            // After the loop, the `currentRemainder` holds the value before the *last* bit was pulled down
-            // The actual final remainder is the last `xorResult` truncated to `remainderLen`
-            const finalRemainder = steps[steps.length - 1].xorResult.substring(divisorLen - remainderLen);
-            steps[steps.length - 1].finalRemainderValue = finalRemainder;
+            summaryGenerated = false; 
         }
 
-        /**
-         * Updates the display based on the current step index.
-         */
-        function updateDisplay() {
-            const stepData = steps[currentStepIndex];
-            stepDisplay.textContent = `Schritt ${currentStepIndex}`;
+        function clearArrows() {
+            activeArrows.forEach(arrow => arrow.remove());
+            activeArrows = [];
+            arrowContainer.innerHTML = ''; 
+        }
 
-            // Render static elements
-            renderBits(dividendDisplay, dividendStr);
-            renderBits(divisorDisplay, divisorStr);
-            renderBits(quotientDisplay, stepData.quotient);
+        function addArrow(targetBitElementInDividendDisplay) {
+            if (!targetBitElementInDividendDisplay) return;
+            const arrow = document.createElement('div');
+            arrow.classList.add('arrow-down');
+            const bitRect = targetBitElementInDividendDisplay.getBoundingClientRect();
+            const containerRect = arrowContainer.getBoundingClientRect(); 
+            const bitCenterInPage = bitRect.left + bitRect.width / 2;
+            arrow.style.left = `${bitCenterInPage - containerRect.left - (ARROW_BASE_WIDTH_PX / 2)}px`;
+            arrow.style.top = `${bitRect.bottom - containerRect.top + 5}px`; 
+            arrowContainer.appendChild(arrow);
+            activeArrows.push(arrow);
+        }
+        
+        function getExplanationForStep(stepIndex, stepData) {
+            if (!stepData) return "Lade Schrittdaten...";
 
-            // Clear dynamic division steps
-            divisionStepsContainer.innerHTML = '';
+            if (stepIndex === 0) {
+                return `<strong>Startzustand:</strong> Dividend: <strong>${dividendStr}</strong>, Divisor: <strong>${divisorStr}</strong>. Die ersten ${divisorLen} Bits des Dividenden (<strong>${stepData.currentDividendSegmentForStepRow}</strong>) bilden das aktuelle Arbeitssegment.`;
+            }
 
-            // Render current remainder (before XOR) and XOR operation
-            if (stepData.currentRemainderBeforeXOR) {
-                const currentRemainderRow = document.createElement('div');
-                currentRemainderRow.classList.add('division-step-row');
-                // Calculate indentation for alignment
-                const indentSize = (currentStepIndex - 1) * (1.8 + 0.25); // bit width + gap
-                currentRemainderRow.style.marginLeft = `${indentSize}rem`;
-                renderBits(currentRemainderRow, stepData.currentRemainderBeforeXOR, [], Array.from({ length: divisorLen }, (_, i) => i));
-                divisionStepsContainer.appendChild(currentRemainderRow);
+            let explanation = `<strong>Schritt ${stepIndex}:</strong> `;
+            const currentSegment = stepData.currentDividendSegmentForStepRow;
+            const quotientBit = stepData.latestQuotientBit;
 
-                const xorOperandRow = document.createElement('div');
-                xorOperandRow.classList.add('division-step-row');
-                xorOperandRow.style.marginLeft = `${indentSize}rem`;
-                renderBits(xorOperandRow, stepData.xorOperand);
-                divisionStepsContainer.appendChild(xorOperandRow);
+            if (quotientBit === '1') {
+                explanation += `Das erste Bit des aktuellen Segments (<strong>${currentSegment}</strong>) ist '1'. Das nächste Quotientenbit ist daher <strong>'1'</strong>. `;
+                explanation += `Das Segment wird mit dem Divisor (<strong>${divisorStr}</strong>) XOR-verknüpft.`;
+            } else {
+                explanation += `Das erste Bit des aktuellen Segments (<strong>${currentSegment}</strong>) ist '0'. Das nächste Quotientenbit ist daher <strong>'0'</strong>. `;
+                explanation += `Das Segment wird mit Nullen (<strong>${'0'.repeat(divisorLen)}</strong>) XOR-verknüpft.`;
+            }
+            
+            explanation += ` Ergebnis der XOR-Operation: <strong>${stepData.xorResult}</strong>.`;
 
-                const lineDiv = document.createElement('div');
-                lineDiv.classList.add('operation-line');
-                lineDiv.style.marginLeft = `${indentSize}rem`;
-                lineDiv.style.width = `${divisorLen * (1.8 + 0.25) - 0.25}rem`; // Adjust width based on bits
-                divisionStepsContainer.appendChild(lineDiv);
+            if (!stepData.isFinalStep) {
+                if (stepData.bitBroughtDownForExplanation !== '') {
+                    explanation += ` Das linkeste Bit des XOR-Ergebnisses wird verworfen. Das nächste Bit '<strong>${stepData.bitBroughtDownForExplanation}</strong>' vom Dividenden wird heruntergezogen und bildet das neue Arbeitssegment: <strong>${stepData.newRemainderSegment}</strong>.`;
+                } else { // Should not happen if not final step, but good to have a fallback
+                     explanation += ` Das linkeste Bit des XOR-Ergebnisses wird verworfen. Es werden keine weiteren Bits heruntergezogen. Neues Arbeitssegment: <strong>${stepData.newRemainderSegment}</strong>.`;
+                }
+            } else { // Final iteration of the loop
+                explanation += ` Das linkeste Bit des XOR-Ergebnisses wird verworfen. Es werden keine weiteren Bits vom Dividenden heruntergezogen.`;
+                explanation += ` Der finale Rest ist: <strong>${stepData.finalRemainderValue}</strong> (die letzten ${remainderLen} Bits des vorherigen Segments).`;
+            }
+            
+            if (stepIndex === steps.length - 1) { // Very last step definition
+                 explanation += `<br><strong>Division abgeschlossen.</strong> Finaler Quotient: <strong>${stepData.quotient}</strong>, Finaler Rest: <strong>${stepData.finalRemainderValue}</strong>.`;
+            }
+            return explanation;
+        }
 
-                const xorResultRow = document.createElement('div');
-                xorResultRow.classList.add('division-step-row');
-                xorResultRow.style.marginLeft = `${indentSize}rem`;
-                renderBits(xorResultRow, stepData.xorResult, [], [], 'xor-result');
-                divisionStepsContainer.appendChild(xorResultRow);
 
-                // Show the next bit being pulled down
-                if (currentStepIndex < steps.length - 1) {
-                    const nextBitIndexInDividend = (currentStepIndex - 1) + divisorLen; // Index of the bit that was pulled down
-                    const nextBitValue = dividendStr[nextBitIndexInDividend];
-
-                    const nextBitRow = document.createElement('div');
-                    nextBitRow.classList.add('division-step-row');
-                    nextBitRow.style.marginLeft = `${indentSize + (divisorLen * (1.8 + 0.25) - (1.8 + 0.25))}rem`; // Align to the right of the XOR result
-                    renderBits(nextBitRow, nextBitValue, [], [], 'highlight');
-                    divisionStepsContainer.appendChild(nextBitRow);
+        function updatePlayPauseButtonText() {
+            if (isPlaying) {
+                playPauseBtn.textContent = 'Pause';
+            } else {
+                if (currentStepIndex === 0) {
+                    playPauseBtn.textContent = 'Start';
+                } else if (currentStepIndex === steps.length - 1) {
+                    playPauseBtn.textContent = 'Start'; 
+                } else {
+                    playPauseBtn.textContent = 'Fortsetzen';
                 }
             }
+        }
 
-            // Update current remainder display
-            if (stepData.newRemainder) {
-                renderBits(currentRemainderDisplay, stepData.newRemainder);
-            } else {
-                currentRemainderDisplay.innerHTML = '';
+        function updateDisplay() {
+            clearArrows();
+            const stepData = steps[currentStepIndex];
+            stepDisplayElement.textContent = `Schritt ${currentStepIndex}`;
+            explanationTextElement.innerHTML = getExplanationForStep(currentStepIndex, stepData); // Update explanation
+
+            const dividendSpecialClasses = {};
+            const hlStart = stepData.mainDividendHighlightStart;
+            const hlEnd = stepData.mainDividendHighlightEnd;
+            for (let k = hlStart; k < hlEnd; k++) dividendSpecialClasses[k] = (dividendSpecialClasses[k] || []).concat('active');
+            if (stepData.broughtDownBitOriginalIndex !== -1 && stepData.broughtDownBitOriginalIndex < dividendStr.length) {
+                dividendSpecialClasses[stepData.broughtDownBitOriginalIndex] = (dividendSpecialClasses[stepData.broughtDownBitOriginalIndex] || []).concat('brought-down');
+                if (currentStepIndex > 0 && dividendDisplay.children[stepData.broughtDownBitOriginalIndex]) {
+                    if (!isPlaying || (isPlaying && currentStepIndex < steps.length -1) ) { 
+                        setTimeout(() => addArrow(dividendDisplay.children[stepData.broughtDownBitOriginalIndex]), isPlaying ? animationSpeed / 6 : 150);
+                    }
+                }
             }
+            renderBits(dividendDisplay, dividendStr, dividendSpecialClasses);
+            renderBits(divisorDisplay, divisorStr);
+            const quotientSpecialClasses = {};
+            if (stepData.newQuotientBitIndex !== -1) quotientSpecialClasses[stepData.newQuotientBitIndex] = 'quotient-bit-new';
+            renderBits(quotientDisplay, stepData.quotient, quotientSpecialClasses);
 
-            // Update final remainder display (only at the very last step)
-            if (stepData.isFinalStep && stepData.finalRemainderValue) {
-                renderBits(finalRemainderDisplay, stepData.finalRemainderValue, [], [], 'result');
+            divisionStepsContainer.innerHTML = '';
+            for (let i = 1; i <= currentStepIndex; i++) {
+                const s = steps[i];
+                if (!s.currentDividendSegmentForStepRow) continue; 
+                const group = document.createElement('div');
+                group.classList.add('division-step-group');
+                group.style.marginLeft = `${s.stepAlignmentChars * BIT_TOTAL_WIDTH_REM}rem`;
+                const currentSegmentRowEl = document.createElement('div');
+                currentSegmentRowEl.classList.add('division-step-row');
+                const segmentSpecialClasses = {};
+                if (s.currentDividendSegmentForStepRow[0] === '1') segmentSpecialClasses[0] = 'current-segment-first-active'; 
+                renderBits(currentSegmentRowEl, s.currentDividendSegmentForStepRow, segmentSpecialClasses, 'current-segment-bit');
+                group.appendChild(currentSegmentRowEl);
+                const xorOperandRowEl = document.createElement('div');
+                xorOperandRowEl.classList.add('division-step-row');
+                renderBits(xorOperandRowEl, s.xorOperand, {}, 'divisor-active-xor');
+                group.appendChild(xorOperandRowEl);
+                const line = document.createElement('div');
+                line.classList.add('operation-line');
+                line.style.width = `${divisorLen * BIT_TOTAL_WIDTH_REM - BIT_GAP_REM}rem`; 
+                group.appendChild(line);
+                const xorResultRowEl = document.createElement('div');
+                xorResultRowEl.classList.add('division-step-row');
+                renderBits(xorResultRowEl, s.xorResult, {}, 'xor-result');
+                group.appendChild(xorResultRowEl);
+                divisionStepsContainer.appendChild(group);
+            }
+            renderBits(currentRemainderDisplay, stepData.newRemainderSegment); 
+            if (stepData.isFinalStep && stepData.finalRemainderValue != null) {
+                renderBits(finalRemainderDisplay, stepData.finalRemainderValue, {}, 'result');
+                if (currentRemainderDisplay.textContent !== stepData.finalRemainderValue) currentRemainderDisplay.innerHTML = ''; 
             } else {
                 finalRemainderDisplay.innerHTML = '';
             }
 
-            // Highlight active part of dividend in the main display
-            const dividendBits = dividendDisplay.children;
-            for (let i = 0; i < dividendBits.length; i++) {
-                dividendBits[i].classList.remove('active', 'highlight');
-                if (i >= stepData.dividendHighlightStart && i < stepData.dividendHighlightEnd) {
-                    dividendBits[i].classList.add('active');
-                }
-                // Highlight the specific bit being pulled down
-                if (currentStepIndex > 0 && i === (currentStepIndex -1) + divisorLen) {
-                    dividendBits[i].classList.add('highlight');
-                }
-            }
-
-            // Update button states
             prevBtn.disabled = currentStepIndex === 0;
             nextBtn.disabled = currentStepIndex === steps.length - 1;
-            if (currentStepIndex === steps.length - 1) {
-                playPauseBtn.textContent = 'Start';
-                isPlaying = false;
+            summaryBtn.disabled = currentStepIndex !== steps.length - 1;
+            
+            updatePlayPauseButtonText();
+            if (currentStepIndex === steps.length - 1 && isPlaying) {
+                isPlaying = false; 
                 clearInterval(animationInterval);
+                updatePlayPauseButtonText(); 
             }
         }
 
-        /**
-         * Advances to the next step.
-         */
+        function generateSummary() {
+            if (summaryGenerated && summaryView.innerHTML !== '') return; 
+            summaryView.innerHTML = ''; 
+            const title = document.createElement('h2');
+            title.classList.add('summary-title');
+            title.textContent = 'Zusammenfassung der Division';
+            summaryView.appendChild(title);
+            const resultsSection = document.createElement('div');
+            resultsSection.classList.add('summary-section');
+            const createSummaryRow = (label, valueStr, valueClass = '') => {
+                const row = document.createElement('div');
+                row.classList.add('summary-value-container');
+                const labelEl = document.createElement('span');
+                labelEl.classList.add('summary-label');
+                labelEl.textContent = label;
+                row.appendChild(labelEl);
+                const valueContainer = document.createElement('div');
+                valueContainer.classList.add('bit-container');
+                renderBits(valueContainer, valueStr, {}, valueClass);
+                row.appendChild(valueContainer);
+                return row;
+            };
+            resultsSection.appendChild(createSummaryRow('Dividend:', dividendStr));
+            resultsSection.appendChild(createSummaryRow('Divisor:', divisorStr));
+            if (steps.length > 0) {
+                const lastStep = steps[steps.length - 1];
+                resultsSection.appendChild(createSummaryRow('Quotient:', lastStep.quotient));
+                resultsSection.appendChild(createSummaryRow('Rest:', lastStep.finalRemainderValue || '', 'result'));
+            }
+            summaryView.appendChild(resultsSection);
+            const stepsTitle = document.createElement('h3');
+            stepsTitle.classList.add('summary-title', 'text-lg', 'mt-4'); 
+            stepsTitle.textContent = 'Detaillierte Schritte';
+            summaryView.appendChild(stepsTitle);
+            const detailedStepsContainer = document.createElement('div');
+            detailedStepsContainer.classList.add('summary-section', 'overflow-x-auto');
+            for (let i = 1; i < steps.length; i++) {
+                const s = steps[i];
+                const group = document.createElement('div');
+                group.classList.add('summary-step-group');
+                group.style.marginLeft = `${s.stepAlignmentChars * BIT_TOTAL_WIDTH_REM * 0.8}rem`; 
+                const quotientBitLabel = document.createElement('span');
+                quotientBitLabel.classList.add('summary-quotient-bit-label');
+                quotientBitLabel.textContent = `(Quotientenbit: ${s.quotient[s.stepAlignmentChars]})`;
+                const currentSegmentRowEl = document.createElement('div');
+                currentSegmentRowEl.classList.add('summary-step-row');
+                const segmentSpecialClasses = {};
+                if (s.currentDividendSegmentForStepRow[0] === '1') segmentSpecialClasses[0] = 'current-segment-first-active';
+                renderBits(currentSegmentRowEl, s.currentDividendSegmentForStepRow, segmentSpecialClasses, 'current-segment-bit');
+                currentSegmentRowEl.appendChild(quotientBitLabel); 
+                group.appendChild(currentSegmentRowEl);
+                const xorOperandRowEl = document.createElement('div');
+                xorOperandRowEl.classList.add('summary-step-row');
+                renderBits(xorOperandRowEl, s.xorOperand, {}, 'divisor-active-xor');
+                group.appendChild(xorOperandRowEl);
+                const line = document.createElement('div');
+                line.classList.add('operation-line');
+                line.style.width = `${divisorLen * BIT_TOTAL_WIDTH_REM * 0.8 - BIT_GAP_REM}rem`;
+                group.appendChild(line);
+                const xorResultRowEl = document.createElement('div');
+                xorResultRowEl.classList.add('summary-step-row');
+                renderBits(xorResultRowEl, s.xorResult, {}, 'xor-result');
+                group.appendChild(xorResultRowEl);
+                detailedStepsContainer.appendChild(group);
+            }
+            summaryView.appendChild(detailedStepsContainer);
+            summaryGenerated = true;
+        }
+        
+        summaryBtn.addEventListener('click', () => {
+            if (currentStepIndex !== steps.length -1) return; 
+            summaryVisible = !summaryVisible;
+            if (summaryVisible) {
+                if (!summaryGenerated) generateSummary();
+                summaryView.classList.remove('hidden');
+                animationContainer.classList.add('hidden');
+                explanationTextElement.classList.add('hidden'); // Hide explanation when summary is shown
+                summaryBtn.textContent = 'Verberge Zusammenfassung';
+            } else {
+                summaryView.classList.add('hidden');
+                animationContainer.classList.remove('hidden');
+                explanationTextElement.classList.remove('hidden'); // Show explanation when summary is hidden
+                summaryBtn.textContent = 'Zeige Zusammenfassung';
+            }
+        });
+
+        speedSelect.addEventListener('change', (event) => {
+            animationSpeed = parseInt(event.target.value);
+            if (isPlaying) { 
+                clearInterval(animationInterval);
+                animationInterval = setInterval(() => {
+                    if (currentStepIndex < steps.length - 1) nextStep();
+                    else { 
+                        isPlaying = false;
+                        clearInterval(animationInterval);
+                        updatePlayPauseButtonText();
+                    }
+                }, animationSpeed);
+            }
+        });
+
         function nextStep() {
-            if (currentStepIndex < steps.length - 1) {
-                currentStepIndex++;
-                updateDisplay();
-            }
+            if (currentStepIndex < steps.length - 1) currentStepIndex++;
+            updateDisplay();
         }
-
-        /**
-         * Goes back to the previous step.
-         */
         function prevStep() {
-            if (currentStepIndex > 0) {
-                currentStepIndex--;
-                updateDisplay();
-            }
+            if (currentStepIndex > 0) currentStepIndex--;
+            updateDisplay();
         }
-
-        /**
-         * Toggles play/pause for the animation.
-         */
+        function startAnimationInterval() {
+            animationInterval = setInterval(() => {
+                if (currentStepIndex < steps.length - 1) {
+                    nextStep();
+                } else {
+                    isPlaying = false; 
+                    clearInterval(animationInterval);
+                    updatePlayPauseButtonText();
+                }
+            }, animationSpeed);
+        }
         function togglePlayPause() {
             isPlaying = !isPlaying;
             if (isPlaying) {
-                playPauseBtn.textContent = 'Pause';
-                animationInterval = setInterval(() => {
-                    if (currentStepIndex < steps.length - 1) {
-                        nextStep();
-                    } else {
-                        togglePlayPause(); // Stop at the end
-                    }
-                }, 1500); // 1.5 seconds per step
+                if (currentStepIndex === steps.length - 1) { 
+                    currentStepIndex = 0; 
+                }
+                if(currentStepIndex !== 0 && currentStepIndex !== steps.length -1) {
+                     updateDisplay(); 
+                } else {
+                     updateDisplay(); 
+                }
+                // Ensure explanation text is visible when starting animation
+                explanationTextElement.classList.remove('hidden');
+                if (summaryVisible) { // If summary is visible, hide it
+                    summaryView.classList.add('hidden');
+                    animationContainer.classList.remove('hidden');
+                    summaryBtn.textContent = 'Zeige Zusammenfassung';
+                    summaryVisible = false;
+                }
+
+                setTimeout(startAnimationInterval, (currentStepIndex === 0 && steps.length > 1) ? (animationSpeed/3) : 0); 
             } else {
-                playPauseBtn.textContent = 'Start';
                 clearInterval(animationInterval);
             }
+            updatePlayPauseButtonText();
         }
-
-        /**
-         * Resets the animation to the beginning.
-         */
         function resetAnimation() {
             clearInterval(animationInterval);
             isPlaying = false;
-            playPauseBtn.textContent = 'Start';
             currentStepIndex = 0;
-            updateDisplay();
+            summaryGenerated = false; 
+            if (summaryVisible) { 
+                summaryView.classList.add('hidden');
+                summaryBtn.textContent = 'Zeige Zusammenfassung';
+                summaryVisible = false;
+            }
+            animationContainer.classList.remove('hidden'); // Ensure animation container is visible
+            explanationTextElement.classList.remove('hidden'); // Ensure explanation is visible
+            updateDisplay(); 
         }
 
-        // Event Listeners
         playPauseBtn.addEventListener('click', togglePlayPause);
         nextBtn.addEventListener('click', nextStep);
         prevBtn.addEventListener('click', prevStep);
         resetBtn.addEventListener('click', resetAnimation);
 
-        // Initialize on window load
         window.onload = function() {
-            calculateSteps();
-            updateDisplay();
+            calculateSteps(); 
+            updateDisplay();  
         };
     </script>
 </body>
