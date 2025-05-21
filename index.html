@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRC Animation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        pre {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #e9e9e9;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 1.1em; /* Slightly larger for readability */
+        }
+        .step {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .step-header {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #0056b3;
+        }
+        .highlight {
+            color: #d9534f; /* Reddish for generator / XORed part */
+            font-weight: bold;
+        }
+        .current-data-segment {
+            color: #5cb85c; /* Greenish for current data segment being processed */
+            font-weight: bold;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #dff0d8;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            color: #3c763d;
+        }
+        .monospace {
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CRC Animation</h1>
+
+        <h2>Eingabewerte</h2>
+        <pre>
+Bitfolge (Daten, M): <span id="dataBitsDisplay" class="monospace">1100110000</span>
+Generatorpolynom (G): <span id="generatorPolyDisplay" class="monospace">11001</span>
+        </pre>
+
+        <button id="startButton">Animation starten</button>
+
+        <h2>Berechnungsschritte:</h2>
+        <div id="animationSteps">
+            <!-- Schritte werden hier dynamisch eingefügt -->
+        </div>
+
+        <div id="resultArea" style="display:none;">
+            <h2>Ergebnis</h2>
+            <div class="result">
+                <p>CRC-Prüfsumme (Rest): <span id="crcResult" class="monospace highlight"></span></p>
+                <p>Zu sendende Bitfolge (Daten + CRC): <span id="finalMessage" class="monospace"></span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DATA_BITS = "1100110000";
+        const GENERATOR_POLY = "11001";
+        const ANIMATION_DELAY_MS = 700; // Millisekunden zwischen den Schritten
+
+        const startButton = document.getElementById('startButton');
+        const animationStepsDiv = document.getElementById('animationSteps');
+        const resultAreaDiv = document.getElementById('resultArea');
+        const crcResultSpan = document.getElementById('crcResult');
+        const finalMessageSpan = document.getElementById('finalMessage');
+
+        document.getElementById('dataBitsDisplay').textContent = DATA_BITS;
+        document.getElementById('generatorPolyDisplay').textContent = GENERATOR_POLY;
+
+        function xorBits(a, b) {
+            let result = "";
+            for (let i = 0; i < a.length; i++) {
+                result += (a[i] === b[i]) ? '0' : '1';
+            }
+            return result;
+        }
+
+        function formatDividendForDisplay(fullDividend, startIndex, length, isXORStep) {
+            let pre = fullDividend.substring(0, startIndex);
+            let current = fullDividend.substring(startIndex, startIndex + length);
+            let post = fullDividend.substring(startIndex + length);
+            
+            let currentSpanClass = isXORStep ? 'current-data-segment' : '';
+            return `${pre}<span class="${currentSpanClass}">${current}</span>${post}`;
+        }
+        
+        async function startAnimation() {
+            startButton.disabled = true;
+            animationStepsDiv.innerHTML = ''; // Alte Schritte löschen
+            resultAreaDiv.style.display = 'none';
+
+            const k = GENERATOR_POLY.length;
+            const numZerosToAppend = k - 1;
+
+            let stepCounter = 1;
+
+            // Schritt 1: Vorbereitung
+            let prepStepDiv = document.createElement('div');
+            prepStepDiv.classList.add('step');
+            prepStepDiv.innerHTML = `<div class="step-header">Schritt ${stepCounter++}: Vorbereitung</div>`;
+            let prepContent = `<pre>Länge des Generatorpolynoms (k): ${k}
+Anzuhängende Nullen (k-1): ${numZerosToAppend}
+Erweiterte Bitfolge (M'): ${DATA_BITS}<span class="highlight">${'0'.repeat(numZerosToAppend)}</span> = ${DATA_BITS + '0'.repeat(numZerosToAppend)}</pre>`;
+            prepStepDiv.innerHTML += prepContent;
+            animationStepsDiv.appendChild(prepStepDiv);
+            await new Promise(resolve => setTimeout(resolve, ANIMATION_DELAY_MS));
+
+            let augmentedDataArray = (DATA_BITS + '0'.repeat(numZerosToAppend)).split('');
+            
+            // Schritt 2: Polynomdivision
+            let divisionHeaderDiv = document.createElement('div');
+            divisionHeaderDiv.classList.add('step');
+            divisionHeaderDiv.innerHTML = `<div class="step-header">Schritt ${stepCounter++}: Polynomdivision (XOR-Operationen)</div>`;
+            animationStepsDiv.appendChild(divisionHeaderDiv);
+            
+            // Die äußere Schleife iteriert über die ursprünglichen Datenbits
+            // und bestimmt, ob am aktuellen Index eine XOR-Operation stattfindet.
+            for (let i = 0; i <= augmentedDataArray.length - k; i++) {
+                // Nur fortfahren, wenn das aktuelle Bit '1' ist
+                if (augmentedDataArray[i] === '1') {
+                    let currentStepDiv = document.createElement('div');
+                    currentStepDiv.classList.add('step');
+                    currentStepDiv.innerHTML = `<div class="step-header">Divisionsschritt (beginnend bei Index ${i}):</div>`;
+                    
+                    let dividendState = augmentedDataArray.join('');
+                    let currentSegment = dividendState.substring(i, i + k);
+
+                    let stepDetail = `<pre>`;
+                    stepDetail += `  ${formatDividendForDisplay(dividendState, i, k, true)}\n`; // Aktueller Zustand
+                    stepDetail += `^ <span class="monospace">${' '.repeat(i)}</span><span class="highlight">${GENERATOR_POLY}</span>${' '.repeat(dividendState.length - (i + k))}\n`; // Generator
+                    stepDetail += `  <span class="monospace">${' '.repeat(i)}</span>${'-'.repeat(k)}\n`; // Trennlinie
+
+                    // XOR-Operation
+                    let xorResultSegment = "";
+                    for (let j = 0; j < k; j++) {
+                        let bitResult = (augmentedDataArray[i + j] === GENERATOR_POLY[j]) ? '0' : '1';
+                        augmentedDataArray[i + j] = bitResult;
+                        xorResultSegment += bitResult;
+                    }
+                    
+                    let newDividendState = augmentedDataArray.join('');
+                    stepDetail += `  ${formatDividendForDisplay(newDividendState, i, k, false)}\n`; // Ergebnis
+                    stepDetail += `</pre>`;
+                    currentStepDiv.innerHTML += stepDetail;
+                    animationStepsDiv.appendChild(currentStepDiv);
+                    await new Promise(resolve => setTimeout(resolve, ANIMATION_DELAY_MS));
+                } else {
+                    // Optional: Schritt für führende Null anzeigen (kann übersprungen werden, um es kürzer zu halten)
+                    let skipStepDiv = document.createElement('div');
+                    skipStepDiv.classList.add('step');
+                    skipStepDiv.innerHTML = `<div class="step-header">Divisionsschritt (beginnend bei Index ${i}):</div>`;
+                    let dividendState = augmentedDataArray.join('');
+                    skipStepDiv.innerHTML += `<pre>  Führendes Bit des aktuellen Fensters ('${augmentedDataArray[i]}') ist 0. Kein XOR.
+  Aktueller Zustand: ${formatDividendForDisplay(dividendState, i, k, false)}</pre>`;
+                    animationStepsDiv.appendChild(skipStepDiv);
+                    await new Promise(resolve => setTimeout(resolve, ANIMATION_DELAY_MS / 2)); // Kürzere Pause für "Skip"-Schritte
+                }
+                 // Wenn wir das Ende der möglichen XOR-Operationen erreicht haben, brechen wir ab.
+                 // Die Schleife geht bis augmentedDataArray.length - k, da dies der letzte mögliche Startpunkt für ein k-Bit-Fenster ist.
+            }
+
+            // Ergebnis
+            const crc = augmentedDataArray.slice(-numZerosToAppend).join(''); // Die letzten k-1 Bits sind der Rest
+            crcResultSpan.textContent = crc;
+            finalMessageSpan.textContent = DATA_BITS + crc;
+            resultAreaDiv.style.display = 'block';
+
+            let finalStepDiv = document.createElement('div');
+            finalStepDiv.classList.add('step');
+            finalStepDiv.innerHTML = `<div class="step-header">Schritt ${stepCounter++}: Ergebnis</div>`;
+            finalStepDiv.innerHTML += `<pre>Nach allen Operationen ist der Rest (die letzten ${numZerosToAppend} Bits): <span class="highlight">${crc}</span></pre>`;
+            animationStepsDiv.appendChild(finalStepDiv);
+
+            startButton.disabled = false;
+        }
+
+        startButton.addEventListener('click', startAnimation);
+    </script>
+</body>
+</html>
