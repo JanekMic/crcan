@@ -1,0 +1,152 @@
+/* Inter font is expected to be loaded via Google Fonts and applied by Tailwind's base configuration or body classes */
+
+.bit-container {
+    display: flex;
+    gap: 0.25rem; /* 4px */
+    flex-wrap: nowrap; /* Prevent wrapping of bits */
+}
+.bit {
+    width: 1.75rem; /* Default bit width */
+    height: 1.75rem; /* Default bit height */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 0.375rem; /* 6px */
+    background-color: #e0e7ff; /* indigo-100 */
+    color: #1e3a8a; /* indigo-900 */
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    flex-shrink: 0; /* Prevent bits from shrinking if container is too small */
+}
+
+/* --- Bit Highlighting and Visual Cues --- */
+.bit.active { /* Active segment of dividend being processed in the main dividend display */
+    background-color: #a5b4fc; /* indigo-300 */
+    color: #1e3a8a; /* indigo-900 */
+}
+.bit.current-segment-bit { /* Bits in the currentDividendSegment row in steps area */
+     background-color: #6366f1; /* indigo-500 */
+     color: white;
+}
+.bit.current-segment-first-active { /* First bit of current segment in steps, if '1' */
+    font-weight: 900; /* Make it bolder */
+    transform: scale(1.05);
+}
+.bit.highlight, .bit.brought-down { /* Bit being brought down from dividend (in main dividend display) */
+    background-color: #fcd34d; /* amber-300 */
+    color: #78350f; /* amber-900 */
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(252, 211, 77, 0.5);
+}
+.bit.result { /* Final remainder bits */
+    background-color: #a78bfa; /* violet-400 */
+    color: #1f2937; /* Tailwind gray-800 */
+}
+.bit.xor-result { /* Bits resulting from XOR operation */
+    background-color: #8b5cf6; /* violet-500 */
+    color: white;
+    font-weight: 700;
+}
+.bit.divisor-active-xor { /* Divisor when shown in XOR operation */
+    background-color: #d1d5db; /* gray-300 */
+    color: #1f2937; /* gray-800 */
+}
+.bit.quotient-bit-new { /* Most recently added quotient bit */
+    transform: scale(1.15);
+    background-color: #34d399; /* emerald-400 */
+    color: #1f2937; /* Tailwind gray-800 */
+}
+.bit.placeholder { /* For empty spots in grid, if needed for alignment */
+    background-color: transparent;
+    box-shadow: none;
+    border: 1px dashed #d1d5db; /* gray-300 */
+}
+.bit.invisible { /* For spacing, takes up space but not visible */
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* --- Division Steps Area Styling --- */
+#division-steps { /* Animation steps container */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; 
+    min-height: 5rem; 
+}
+.division-step-group { 
+    margin-bottom: 0.75rem; 
+    position: relative; 
+}
+.division-step-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.25rem; 
+    min-height: 2rem; 
+}
+.operation-line {
+    height: 2px;
+    background-color: #4b5563; /* gray-600 */
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    border-radius: 1px;
+}
+
+/* --- Summary View Styling --- */
+/* Styles for #summary-section .summary-title are handled by Tailwind classes in index.html */
+
+#summary-section .summary-section { 
+    margin-bottom: 1.5rem;
+}
+#summary-section .summary-label { 
+    font-weight: 600; 
+    color: #374151; 
+    margin-right: 0.5rem;
+    min-width: 100px; 
+    display: inline-block;
+}
+#summary-section .summary-value-container { 
+    display: flex; 
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+#summary-section .summary-step-group { 
+    margin-bottom: 0.5rem;
+    padding-left: 0.5rem; 
+}
+#summary-section .summary-step-row { 
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.1rem; 
+}
+#summary-section .summary-quotient-bit-label { 
+    font-size: 0.875rem;
+    color: #4b5563;
+    margin-left: 1rem;
+}
+
+/* Explanation Text Styling */
+#explanation-text {
+    line-height: 1.6; 
+}
+#explanation-text strong {
+    color: #2563eb; 
+}
+
+/* --- Responsiveness --- */
+@media (max-width: 768px) { /* md breakpoint */
+    .bit { width: 1.5rem; height: 1.5rem; font-size: 0.875rem; }
+    #summary-section .summary-label { min-width: 80px; }
+}
+
+@media (max-width: 480px) { /* sm breakpoint or smaller */
+    .bit { width: 1.25rem; height: 1.25rem; font-size: 0.75rem; }
+    .final-remainder-text, .current-remainder-text { font-size: 0.875rem; }
+    #summary-section .summary-label { display: block; margin-bottom: 0.25rem; }
+    #summary-section .summary-value-container { flex-direction: column; align-items: flex-start; }
+}
+
+.sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;
+}
